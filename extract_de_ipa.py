@@ -1,9 +1,10 @@
 pageTitle = ""
+langFound = False
 pronFound = False
 
 format = "csv"
 
-with open('../../jisho/enwiktionary-20220120-pages-meta-current.xml', newline='') as f:
+with open('dewiktionary-20221120-pages-meta-current.xml', newline='') as f:
     while True:
         line = f.readline()
         if not line:
@@ -25,36 +26,53 @@ with open('../../jisho/enwiktionary-20220120-pages-meta-current.xml', newline=''
         if pageTitle == "":
             continue
 
-        if line.startswith("===Pronunciation==="):
-            pronFound = True
-        elif line.startswith("=="):
-            pronFound = False
-
-        if line.startswith("=="):
+        if line.startswith("==") and line.find("|Deutsch}}") > -1:
+            langFound = True
             continue
+        elif line.startswith("=="):
+            langFound = False
+            continue
+
+        if langFound and line.startswith("{{Aussprache}}"):
+            pronFound = True
+            continue
+        elif line.startswith("{{"):
+            pronFound = False
+            continue
+
         if not pronFound:
             continue
 
-        if line.startswith("* {{IPA|de|") or line.startswith("** {{IPA|de|"):
-            parts = line.strip().split("{{")
-            ipa = parts[1].replace("IPA|de|", "").replace("}}", "").replace("|", ",").strip()
+        if line.startswith(":{{IPA}}"):     # or line.startswith("** {{IPA|de|"):
+            items = line.replace(":{{IPA}}", "").strip().split(",")
+            for item in items:
+                parts = item.strip().split("{{Lautschrift|")
+                ipa = ""
+                desc = ""
 
-            if format == "all":
-                print("page: " + pageTitle + "; IPA de: " + ipa
-                    + (("; " + (", ".join(
-                        map(lambda p: p.replace("|", ":").replace("}}", "").strip(), parts[2:]))))
-                        if len(parts) > 2 else ""))
+                if len(parts) == 1:
+                    ipa = parts[0].replace("}}", "").strip()
+                    
+                elif len(parts) == 2:
+                    ipa = parts[1].replace("}}", "").strip()
+                    desc = parts[0].replace("''", "").replace("[[", "").replace("]]", "").strip()
 
-            if format == "csv":
-                print(pageTitle + "," 
-                    + (ipa if ipa.find(",")==-1 else ("\"" + ipa + "\""))
-                    + ((",\"" 
-                        + (", ".join(
-                            map(lambda p: 
-                                p.replace("|", ":").replace("}}", "").replace("\"", "'").strip(), 
-                            parts[2:])))
-                        + "\"")
-                        if len(parts) > 2 else "")
-                )
+            #if format == "all":
+            #    print("page: " + pageTitle + "; IPA de: " + ipa
+            #        + (("; " + (", ".join(
+            #            map(lambda p: p.replace("|", ":").replace("}}", "").strip(), parts[2:]))))
+            #            if len(parts) > 2 else ""))
+
+                if format == "csv":
+                    print(pageTitle + ",/" 
+                        + (ipa if ipa.find(",")==-1 else ("\"" + ipa + "\"")) + "/"
+                        + (",\"" + desc + "\"" if len(desc) > 1 else "")
+                            #+ (", ".join(
+                            #    map(lambda p: 
+                            #        p.replace("|", ":").replace("}}", "").replace("\"", "'").strip(), 
+                            #    parts[2:])))
+                            #+ "\"")
+                            #if len(parts) > 2 else "")
+                    )
 
 f.close()
