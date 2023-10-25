@@ -10,8 +10,8 @@ German IPA dictionary as extracted from wiktionary
 ## Generate de.csv from de.wiktionary
 
 - Download `dewiktionary-****-pages-meta-current.xml` dump from [Wikimedia](https://dumps.wikimedia.org/backup-index.html)
-- edit `extract_de_ipa.py` to pass the file location to `open()`
-- `$ ./extract_de_ipa.sh`
+- Change `INFILE` at the top of `extract_de_ipa.py` to point to the `.xml.bz2` file you downloaded
+- `$ python3 ./extract_de_ipa.py`
 
 ## Documentation
 

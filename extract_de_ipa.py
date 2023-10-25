@@ -1,7 +1,11 @@
-
+import bz2
+import csv
 import html
 
 import regex
+
+INFILE = "./wikidata/dewiktionary-20231020-pages-meta-current.xml.bz2"
+OUTFILE = "./de_dewikt.csv"
 
 # modes:
 
@@ -131,7 +135,7 @@ commentsTable = str.maketrans("", "", "'()[]{}:")
 
 def formatColumn(s: str) -> str:
     s = regex.sub("(\u2060|\u200b)", "", html.unescape(s))
-    return "\"" + s + "\"" if "," in s else s
+    return s
 
 def formatComments(c: str, ca: str) -> str:
     c = c.strip().translate(commentsTable)
@@ -144,10 +148,10 @@ def formatComments(c: str, ca: str) -> str:
 
 ipaChars = set()
 
-searchIpa = ""
+# searchIpa = ""
 
-def printIpa(pageTitle: str, ipa: str, comments: str = ""):
-    global searchIpa
+def buildRow(pageTitle: str, ipa: str, comments: str = ""):
+    # global searchIpa
 
     plainIpa = html.unescape(html.unescape(ipa))        # MediaWiki markup inside XML text
     plainIpa = regex.sub("(\u2060|\u200b)", "", plainIpa)
@@ -158,18 +162,21 @@ def printIpa(pageTitle: str, ipa: str, comments: str = ""):
     for ch in plainIpa:
         ipaChars.add(ch)
 
-    print(formatColumn(pageTitle) + "," + formatColumn("/" + plainIpa + "/") + (("," + formatColumn(comments)) if comments != "" else ""))
+    return [
+        formatColumn(pageTitle),
+        formatColumn("/" + plainIpa + "/"),
+        formatColumn(comments),
+    ]
 
 def isValidIpa(s: str) -> bool:
     return s != None and s.strip() != "" and not s.startswith("-") and not "…" in s
 
-
-with open('../wikidata/dewiktionary-20221120-pages-meta-current.xml', newline='') as f:
-    while True:
-        line = f.readline()
-        if not line:
-            break
-        
+print(f'Reading file "{INFILE}"')
+resultRows = []
+with bz2.open(INFILE, mode="rt", newline="") as f:
+    for i, line in enumerate(f):
+        if i % 100_000 == 0:
+            print(f"\r{i/1_000_000:,.1f} million lines processed", end="", flush=True)
         if line.find("</page>") > -1:
             pageTitle = ""
             pronFound = False
@@ -269,10 +276,10 @@ with open('../wikidata/dewiktionary-20221120-pages-meta-current.xml', newline=''
                     continue
 
                 desc = formatComments(match["comment0"], match["commentAfter0"])
-                printIpa(pageTitle, match["ipa0"], desc)
+                resultRows.append(buildRow(pageTitle, match["ipa0"], desc))
 
                 if isValidIpa(match["ipa1"]):           
-                    printIpa(pageTitle, match["ipa1"], desc)
+                    resultRows.append(buildRow(pageTitle, match["ipa1"], desc))
 
                 l = len(match.captures("repeat"))
                 for i in range(l):
@@ -285,16 +292,23 @@ with open('../wikidata/dewiktionary-20221120-pages-meta-current.xml', newline=''
                     ipa = match.captures("ipa")[i]
 
                     if isValidIpa(ipa):
-                        printIpa(pageTitle, ipa, desc)
+                        resultRows.append(buildRow(pageTitle, ipa, desc))
 
             if matchFallback:
 
                 if not isValidIpa(matchFallback["ipa"]):
                     continue
 
-                printIpa(pageTitle, matchFallback["ipa"])
+                resultRows.append(buildRow(pageTitle, matchFallback["ipa"]))
+print(f"\n{i:,} lines processed")
 
-f.close()
+print("Sorting rows")
+resultRows.sort(key=lambda x: x[0])
+print(f"Writing rows to file '{OUTFILE}'")
+with open(OUTFILE, "w") as f:
+    rowWriter = csv.writer(f)
+    rowWriter.writerows(resultRows)
+print("done.")
 
 # used to debug IPA
 #print("characters in IPA")
